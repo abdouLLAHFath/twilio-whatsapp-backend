@@ -3,7 +3,7 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 
-// Twilio
+// Twilio setup
 const accountSid = process.env.TWILIO_SID;
 const authToken = process.env.TWILIO_TOKEN;
 const twilioNumber = process.env.TWILIO_NUMBER;
@@ -12,12 +12,12 @@ const client = require('twilio')(accountSid, authToken);
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Middlewares
+// ✅ Middleware pour parser JSON et x-www-form-urlencoded
 app.use(cors());
-app.use(express.json()); // Pour JSON
-app.use(express.urlencoded({ extended: true })); // Pour x-www-form-urlencoded
+app.use(express.json()); // pour application/json
+app.use(express.urlencoded({ extended: true })); // pour x-www-form-urlencoded
 
-// Conversations JSON
+// ✅ Fichier pour stocker les messages
 const DATA_PATH = path.join(__dirname, 'conversations.json');
 let conversations = {};
 if (fs.existsSync(DATA_PATH)) {
@@ -28,21 +28,22 @@ const saveConversations = () => {
   fs.writeFileSync(DATA_PATH, JSON.stringify(conversations, null, 2));
 };
 
-// ✅ GET conversations
+// ✅ GET toutes les conversations
 app.get('/api/conversations', (req, res) => {
   res.json(conversations);
 });
 
-// ✅ Webhook Zoho/Twilio
+// ✅ Webhook Twilio ou Zoho Flow
 app.post('/webhook', (req, res) => {
-  console.log('➡️ Webhook reçu :', req.body);
+  console.log('➡️ Headers reçus :', req.headers);
+  console.log('➡️ Corps reçu :', req.body);
 
   const From = req.body.From || req.body.from;
   const Body = req.body.Body || req.body.body;
 
   if (!From || !Body) {
     console.log('❌ Donnée manquante dans Webhook');
-    return res.sendStatus(400);
+    return res.status(400).send('Donnée manquante');
   }
 
   if (!conversations[From]) conversations[From] = [];
@@ -57,11 +58,11 @@ app.post('/webhook', (req, res) => {
   res.status(200).send('Message reçu');
 });
 
-// ✅ Envoi de message
+// ✅ Envoi de message depuis interface
 app.post('/send', async (req, res) => {
   const { to, message } = req.body;
 
-  if (!to || !message) return res.sendStatus(400);
+  if (!to || !message) return res.status(400).send('Champs manquants');
 
   const formattedTo = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
 
@@ -84,11 +85,11 @@ app.post('/send', async (req, res) => {
     res.status(200).send('Message envoyé et enregistré');
   } catch (err) {
     console.error('❌ Erreur Twilio :', err.message);
-    res.status(500).send('Erreur envoi');
+    res.status(500).send('Erreur lors de l’envoi');
   }
 });
 
-// ✅ Serveur actif
+// ✅ Lancement serveur
 app.listen(PORT, () => {
   console.log(`✅ Serveur actif sur le port ${PORT}`);
 });
