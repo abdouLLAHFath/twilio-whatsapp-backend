@@ -1,72 +1,64 @@
 const express = require('express');
-const fs = require('fs');
 const bodyParser = require('body-parser');
-const fetch = require('node-fetch');
+const cors = require('cors');
+
 const app = express();
-const PORT = process.env.PORT || 3000;
+const port = process.env.PORT || 10000;
 
-const TWILIO_SID = process.env.TWILIO_SID;
-const TWILIO_TOKEN = process.env.TWILIO_TOKEN;
-const TWILIO_NUMBER = process.env.TWILIO_NUMBER;
-
+app.use(cors());
+app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
-const DB_FILE = './conversations.json';
+let conversations = {};
 
-function loadMessages() {
-  if (!fs.existsSync(DB_FILE)) fs.writeFileSync(DB_FILE, '{}');
-  return JSON.parse(fs.readFileSync(DB_FILE));
-}
-
-function saveMessages(data) {
-  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
-}
-
+// 🚀 Route webhook appelée par Twilio
 app.post('/webhook', (req, res) => {
-  const { From, Body } = req.body;
-  const data = loadMessages();
-  if (!data[From]) data[From] = [];
-  data[From].push({ from: From, body: Body, timestamp: new Date().toISOString() });
-  saveMessages(data);
-  res.sendStatus(200);
-});
+  const body = req.body;
+  console.log("📩 Webhook received:", body);
 
-app.get('/api/conversations', (req, res) => {
-  const data = loadMessages();
-  res.json(data);
-});
+  const from = body.From || 'undefined';
+  const message = body.Body || '';
 
-app.get('/api/messages', (req, res) => {
-  const number = req.query.number;
-  const data = loadMessages();
-  res.json(data[number] || []);
-});
+  if (!conversations[from]) {
+    conversations[from] = [];
+  }
 
-app.post('/api/send', async (req, res) => {
-  const { to, body } = req.body;
-
-  const params = new URLSearchParams();
-  params.append('To', to);
-  params.append('From', TWILIO_NUMBER);
-  params.append('Body', body);
-
-  const twilioRes = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`, {
-    method: 'POST',
-    headers: {
-      Authorization: 'Basic ' + Buffer.from(`${TWILIO_SID}:${TWILIO_TOKEN}`).toString('base64'),
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: params
+  conversations[from].push({
+    message: message,
+    timestamp: new Date().toISOString()
   });
 
-  const result = await twilioRes.json();
-
-  const data = loadMessages();
-  if (!data[to]) data[to] = [];
-  data[to].push({ from: 'me', body: body, timestamp: new Date().toISOString() });
-  saveMessages(data);
-
-  res.json(result);
+  res.send('OK');
 });
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// 📤 Envoyer un message (sera utilisé pour "envoyer" depuis Zoho Creator)
+app.post('/api/send', (req, res) => {
+  const { to, message } = req.body;
+
+  if (!conversations[to]) {
+    conversations[to] = [];
+  }
+
+  conversations[to].push({
+    message: message,
+    timestamp: new Date().toISOString(),
+    sent: true
+  });
+
+  res.send({ success: true });
+});
+
+// 📄 Voir toutes les conversations
+app.get('/api/conversations', (req, res) => {
+  res.send(conversations);
+});
+
+// 📄 Voir les messages d’un numéro spécifique
+app.get('/api/messages', (req, res) => {
+  const number = req.query.number;
+  res.send(conversations[number] || []);
+});
+
+app.listen(port, () => {
+  console.log(`✅ Server running on port ${port}`);
+});
