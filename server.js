@@ -14,8 +14,11 @@ const client = require('twilio')(accountSid, authToken);
 const app = express();
 const PORT = process.env.PORT || 10000;
 
+// Middlewares
 app.use(cors());
-app.use(bodyParser.json());
+app.use(bodyParser.json()); // Pour les requêtes JSON
+app.use(bodyParser.urlencoded({ extended: false })); // Pour les requêtes x-www-form-urlencoded (Twilio)
+
 
 // Fichier JSON pour stocker les conversations
 const DATA_PATH = path.join(__dirname, 'conversations.json');
