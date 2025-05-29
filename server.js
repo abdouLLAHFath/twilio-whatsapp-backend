@@ -17,8 +17,7 @@ const PORT = process.env.PORT || 10000;
 // Middlewares
 app.use(cors());
 app.use(bodyParser.json()); // Pour les requêtes JSON
-app.use(bodyParser.urlencoded({ extended: false })); // Pour les requêtes x-www-form-urlencoded (Twilio)
-
+app.use(bodyParser.urlencoded({ extended: false })); // Pour les requêtes x-www-form-urlencoded
 
 // Fichier JSON pour stocker les conversations
 const DATA_PATH = path.join(__dirname, 'conversations.json');
@@ -40,11 +39,13 @@ app.get('/api/conversations', (req, res) => {
   res.json(conversations);
 });
 
-// ✅ Webhook Twilio (réception message)
+// ✅ Webhook Twilio ou Zoho Flow (réception message)
 app.post('/webhook', (req, res) => {
   console.log('➡️ Webhook reçu :', req.body);
 
-  const { From, Body } = req.body;
+  // Accepte les deux formats (Twilio ou Zoho)
+  const From = req.body.From || req.body.from;
+  const Body = req.body.Body || req.body.body;
 
   if (!From || !Body) {
     console.log('❌ Donnée manquante dans Webhook');
@@ -55,7 +56,8 @@ app.post('/webhook', (req, res) => {
 
   conversations[From].push({
     message: Body,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    received: true
   });
 
   saveConversations();
